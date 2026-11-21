@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>cc0 — a minimal C compiler in C</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55;
+         color: #1a1a1a; }
+  h1 { font-size: 1.8rem; margin-bottom: .2rem; }
+  h2 { margin-top: 2rem; border-bottom: 1px solid #ddd; padding-bottom: .25rem; }
+  code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  pre { background: #f4f4f4; padding: .8rem 1rem; overflow-x: auto; border-radius: 6px;
+        font-size: .9rem; }
+  pre .out { color: #0a6b2d; }
+  .tag { color: #666; }
+  a { color: #0b5fff; }
+</style>
+</head>
+<body>
+
+<h1>cc0 — a minimal C compiler, written in C</h1>
+<p class="tag">A real compiler, not a simulation. It lexes, parses, and generates
+x86-64 assembly for a small subset of C, then assembles and links it with
+<code>gcc</code> into a runnable program.</p>
+
+<h2>How it works</h2>
+<pre>source .c  →  lexer  →  recursive-descent parser (AST)
+           →  x86-64 code generator (AT&amp;T assembly)
+           →  gcc (assembler + linker)  →  executable</pre>
+<p>Variables live in 8-byte slots on the stack (<code>-8(%rbp)</code>,
+<code>-16(%rbp)</code>, …). Expressions are evaluated onto <code>%rax</code>
+with a push/pop stack machine. <code>print(x)</code> is a builtin that calls
+<code>printf("%d\n")</code>.</p>
+
+<h2>What it supports</h2>
+<ul>
+  <li><code>int main() { … }</code> — the only function</li>
+  <li><code>int x;</code> / <code>int x = &lt;expr&gt;;</code> and <code>x = &lt;expr&gt;;</code></li>
+  <li><code>return &lt;expr&gt;;</code> (becomes the program's exit code)</li>
+  <li><code>print(&lt;expr&gt;);</code> builtin</li>
+  <li><code>if / else</code> and <code>while</code></li>
+  <li>Expressions: <code>+ - * / %</code>, unary <code>-</code> and <code>!</code>,
+      <code>== != &lt; &lt;= &gt; &gt;=</code>, <code>&amp;&amp; ||</code>, parentheses,
+      <code>//</code> and <code>/* … */</code> comments</li>
+</ul>
+
+<h2>Example 1 — return a constant</h2>
+<pre>int main() {
+    return 42;
+}</pre>
+<p>Output: <span class="out">exit code 42</span> (nothing printed — the value is the exit code).</p>
+
+<h2>Example 2 — arithmetic and precedence</h2>
+<pre>int main() {
+    return 2 + 3 * 4;   // * binds tighter than +
+}</pre>
+<p>Output: <span class="out">exit code 14</span></p>
+
+<h2>Example 3 — variables</h2>
+<pre>int main() {
+    int a = 10;
+    int b = 20;
+    int c = a + b * 2;
+    return c;
+}</pre>
+<p>Output: <span class="out">exit code 50</span></p>
+<p>cc0 turns this into real assembly (<code>./cc0 --asm tests/test3_variables.c -o out.s</code>):</p>
+<pre>    .text
+    .globl main
+main:
+    push %rbp
+    mov %rsp, %rbp
+    sub $32, %rsp
+    mov $10, %rax
+    mov %rax, -8(%rbp)
+    mov $20, %rax
+    mov %rax, -16(%rbp)
+    mov -8(%rbp), %rax
+    push %rax
+    mov -16(%rbp), %rax
+    push %rax
+    mov $2, %rax
+    mov %rax, %rcx
+    pop %rax
+    imul %rcx, %rax
+    mov %rax, %rcx
+    pop %rax
+    add %rcx, %rax
+    mov %rax, -24(%rbp)
+    mov -24(%rbp), %rax
+    jmp .Lret
+    mov $0, %rax
+.Lret:
+    leave
+    ret</pre>
+
+<h2>Example 4 — print and a loop</h2>
+<pre>int main() {
+    int i = 1;
+    int total = 0;
+    while (i &lt;= 5) {
+        total = total + i;
+        i = i + 1;
+    }
+    print(total);
+    return 0;
+}</pre>
+<p>Output:</p>
+<pre><span class="out">15</span></pre>
+
+<h2>Example 5 — division, modulo, comparison, if/else</h2>
+<pre>int main() {
+    print(17 / 5);
+    print(17 % 5);
+    print(3 &lt; 5);
+    if (10 &gt; 5) { print(1); } else { print(0); }
+    return 3 &lt; 5;
+}</pre>
+<p>Output:</p>
+<pre><span class="out">3
+2
+1
+1</span></pre>
+<p>Exit code: <span class="out">1</span></p>
+
+<h2>How to run it</h2>
+<p>This page is only a demo — the compiler itself runs on Linux with
+<code>gcc</code> installed. No server, no account, no environment variables.</p>
+<pre>git clone &lt;your-repo-url&gt;
+cd c-compiler-in-c      # this folder is a standalone repo (suggested name)
+make                    # builds ./cc0 from src/main.c
+./cc0 tests/test3_variables.c -o prog
+./prog; echo $?         # → 50
+./run_tests.sh          # runs all 5 tests (5 passed, 0 failed)</pre>
+<p>See <a href="../README.md">README.md</a> for the full list of what was
+tested, the limitations, and the next steps.</p>
+
+<h2>Limitations</h2>
+<ul>
+  <li>Only <code>int main()</code> — no other functions, no function calls
+      except the <code>print()</code> builtin.</li>
+  <li>Only <code>int</code> — no <code>char</code>, pointers, arrays, structs,
+      strings, or floats.</li>
+  <li>No preprocessor (<code>#include</code> / <code>#define</code>).</li>
+  <li>Only 64-bit x86-64 Linux; division by zero crashes, as in C.</li>
+  <li>Exit codes are 8-bit, so <code>return 300;</code> shows up as 44.</li>
+</ul>
+
+</body>
+</html>

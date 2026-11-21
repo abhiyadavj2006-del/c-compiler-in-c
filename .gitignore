@@ -1,0 +1,20 @@
+# cc0 — compiled binaries and generated outputs
+# (source .c files, the Makefile, tests/*.c, demo/ and docs are tracked)
+
+# The compiler binary itself, and the default program output
+/cc0
+/a.out
+
+# Compiled test programs and any other executables produced by cc0
+*.out
+
+# Object files
+*.o
+
+# Generated x86-64 assembly outputs (cc0 --asm ... -o *.s)
+*.s
+
+# Editor / OS artefacts
+.DS_Store
+*~
+*.swp

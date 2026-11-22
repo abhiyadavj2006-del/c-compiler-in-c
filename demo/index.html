@@ -36,13 +36,26 @@ with a push/pop stack machine. <code>print(x)</code> is a builtin that calls
 
 <h2>What it supports</h2>
 <ul>
-  <li><code>int main() { … }</code> — the only function</li>
-  <li><code>int x;</code> / <code>int x = &lt;expr&gt;;</code> and <code>x = &lt;expr&gt;;</code></li>
+  <li>User-defined functions with parameters, calls, and recursion —
+      <code>int add(int a, int b) { return a + b; }</code>, plus
+      <code>void</code> functions (up to 6 arguments, System V ABI)</li>
+  <li><code>int main() { … }</code> (required entry point)</li>
+  <li>Global variables: <code>int g = 5;</code> and <code>int h;</code></li>
+  <li><code>int x;</code> / <code>int x = &lt;expr&gt;;</code> and
+      <code>x = &lt;expr&gt;;</code>, <code>x += …;</code>, <code>x++;</code>,
+      <code>++x;</code></li>
+  <li><code>char c = 'A';</code> and character literals (<code>'a'</code>,
+      <code>'\n'</code>, …)</li>
   <li><code>return &lt;expr&gt;;</code> (becomes the program's exit code)</li>
   <li><code>print(&lt;expr&gt;);</code> builtin</li>
-  <li><code>if / else</code> and <code>while</code></li>
-  <li>Expressions: <code>+ - * / %</code>, unary <code>-</code> and <code>!</code>,
-      <code>== != &lt; &lt;= &gt; &gt;=</code>, <code>&amp;&amp; ||</code>, parentheses,
+  <li><code>if / else if / else</code>, <code>while</code>,
+      <code>for (init; cond; incr)</code>, <code>break</code> /
+      <code>continue</code></li>
+  <li>Block scoping and shadowing: <code>{ int x = 2; }</code></li>
+  <li>Expressions: <code>+ - * / %</code>, unary <code>-</code>,
+      <code>!</code>, <code>~</code>, <code>&lt;&lt; &gt;&gt;</code>,
+      <code>&amp; ^ |</code>, <code>== != &lt; &lt;= &gt; &gt;=</code>,
+      <code>&amp;&amp; ||</code>, parentheses,
       <code>//</code> and <code>/* … */</code> comments</li>
 </ul>
 
@@ -90,9 +103,9 @@ main:
     add %rcx, %rax
     mov %rax, -24(%rbp)
     mov -24(%rbp), %rax
-    jmp .Lret
+    jmp .L0
     mov $0, %rax
-.Lret:
+.L0:
     leave
     ret</pre>
 
@@ -125,6 +138,24 @@ main:
 1</span></pre>
 <p>Exit code: <span class="out">1</span></p>
 
+<h2>Example 6 — functions and recursion (new in the advanced update)</h2>
+<pre>int fact(int n) {
+    if (n &lt;= 1) {
+        return 1;
+    }
+    return n * fact(n - 1);
+}
+
+int main() {
+    print(fact(5));
+    return 0;
+}</pre>
+<p>Output:</p>
+<pre><span class="out">120</span></pre>
+<p>Arguments are passed in registers (<code>%rdi, %rsi, …</code>, System V
+ABI), each function gets its own stack frame, and the stack is kept
+16-byte aligned at every call — so recursion just works.</p>
+
 <h2>How to run it</h2>
 <p>This page is only a demo — the compiler itself runs on Linux with
 <code>gcc</code> installed. No server, no account, no environment variables.</p>
@@ -133,16 +164,15 @@ cd c-compiler-in-c      # this folder is a standalone repo (suggested name)
 make                    # builds ./cc0 from src/main.c
 ./cc0 tests/test3_variables.c -o prog
 ./prog; echo $?         # → 50
-./run_tests.sh          # runs all 5 tests (5 passed, 0 failed)</pre>
+./run_tests.sh          # runs all 9 tests (9 passed, 0 failed)</pre>
 <p>See <a href="../README.md">README.md</a> for the full list of what was
 tested, the limitations, and the next steps.</p>
 
 <h2>Limitations</h2>
 <ul>
-  <li>Only <code>int main()</code> — no other functions, no function calls
-      except the <code>print()</code> builtin.</li>
-  <li>Only <code>int</code> — no <code>char</code>, pointers, arrays, structs,
-      strings, or floats.</li>
+  <li>Only <code>int</code> and <code>char</code> (char is stored like
+      int) — no pointers, arrays, structs, strings, or floats.</li>
+  <li>At most 6 function parameters / arguments.</li>
   <li>No preprocessor (<code>#include</code> / <code>#define</code>).</li>
   <li>Only 64-bit x86-64 Linux; division by zero crashes, as in C.</li>
   <li>Exit codes are 8-bit, so <code>return 300;</code> shows up as 44.</li>

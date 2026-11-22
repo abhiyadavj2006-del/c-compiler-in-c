@@ -28,6 +28,38 @@ check test5_div_mod_compare  1  "3
 2
 1
 1"
+check test6_functions        3  "7
+42
+120
+10"
+check test7_for_break        0  "55
+3
+2"
+check test8_char_ops         0  "65
+32
+10
+6
+7
+6
+18
+14
+8
+14
+6
+16
+16
+-1
+15
+0
+42"
+check test9_void_globals     8  "7
+8
+2
+55
+100
+101
+102
+5"
 
 echo "----"
 echo "$pass passed, $fail failed"

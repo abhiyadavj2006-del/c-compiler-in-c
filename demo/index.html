@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>cc0 — a minimal C compiler in C</title>
+<title>cc0 — a minimal C compiler in C — now runs in your browser</title>
 <style>
   body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
          max-width: 760px; margin: 2rem auto; padding: 0 1rem; line-height: 1.55;
@@ -16,6 +16,24 @@
   pre .out { color: #0a6b2d; }
   .tag { color: #666; }
   a { color: #0b5fff; }
+  textarea { width: 100%; box-sizing: border-box; font-family: ui-monospace,
+             SFMono-Regular, Menlo, Consolas, monospace; font-size: .9rem;
+             padding: .8rem; border: 1px solid #ccc; border-radius: 6px;
+             background: #fafafa; line-height: 1.5; tab-size: 4; }
+  button { font-size: 1rem; padding: .5rem 1.1rem; border-radius: 6px;
+           border: 1px solid #0b5fff; background: #0b5fff; color: #fff;
+           cursor: pointer; margin: .25rem .25rem .25rem 0; }
+  button.secondary { background: #fff; color: #0b5fff; }
+  button.example { background: #eef4ff; color: #0b3d91; border-color: #c8dcff;
+                   font-size: .85rem; padding: .3rem .6rem; }
+  button.example.active { background: #0b5fff; color: #fff; }
+  #output { min-height: 3rem; white-space: pre-wrap; }
+  #output.err { color: #b00020; }
+  #asm { display: none; }
+  .status { color: #666; font-size: .9rem; margin-top: .5rem; }
+  .status b { color: #0a6b2d; }
+  .status b.err { color: #b00020; }
+  label { font-size: .9rem; color: #444; }
 </style>
 </head>
 <body>
@@ -24,6 +42,123 @@
 <p class="tag">A real compiler, not a simulation. It lexes, parses, and generates
 x86-64 assembly for a small subset of C, then assembles and links it with
 <code>gcc</code> into a runnable program.</p>
+
+<h2>Try it live — right here in your browser</h2>
+<p>No server, no install, no account. This page runs a pure-JavaScript
+interpreter (<code>cc0.js</code>, same file, no CDN) for the exact C subset
+the real compiler supports — functions and recursion, <code>for</code>,
+<code>if/else if/else</code>, <code>break</code>/<code>continue</code>,
+globals, <code>char</code>, <code>void</code>, bitwise/shift operators —
+plus <code>printf</code> with <code>%d</code>/<code>%c</code>/<code>%s</code>
+(a web-only extra; the real compiler has no strings). Pick an example,
+edit it, and hit Run. A step limit (1,000,000 steps) plus a 3&nbsp;second
+time limit stop infinite loops from ever hanging the page.</p>
+
+<p id="examples"></p>
+<p>
+  <textarea id="editor" rows="16" spellcheck="false"></textarea>
+</p>
+<p>
+  <button id="runBtn" type="button">▶ Run</button>
+  <button id="asmBtn" type="button" class="secondary">Show assembly</button>
+  <button id="clearBtn" type="button" class="secondary">Clear output</button>
+  <label style="margin-left:.5rem"><input type="checkbox" id="runAsm" checked>
+  show assembly after running</label>
+</p>
+<h3>Program output</h3>
+<pre id="output">(nothing run yet — pick an example above and press Run)</pre>
+<p class="status" id="status"></p>
+<h3 id="asmHeading" style="display:none">Assembly-style listing</h3>
+<pre id="asm"></pre>
+<p class="tag">The listing is illustrative: it shows the same stack-machine style
+(values in <code>%rax</code>, push/pop) that cc0's real x86-64 code
+generator emits. For the exact assembly, run
+<code>./cc0 --asm tests/test3_variables.c -o out.s</code> locally.</p>
+
+<script src="cc0.js"></script>
+<script>
+(function () {
+  var editor = document.getElementById('editor');
+  var output = document.getElementById('output');
+  var status = document.getElementById('status');
+  var asmPre = document.getElementById('asm');
+  var asmHeading = document.getElementById('asmHeading');
+  var examplesDiv = document.getElementById('examples');
+  var runAsm = document.getElementById('runAsm');
+
+  var buttons = [];
+  CC0.EXAMPLES.forEach(function (ex, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'example';
+    b.textContent = ex.title;
+    b.onclick = function () {
+      editor.value = ex.src;
+      buttons.forEach(function (x) { x.classList.remove('active'); });
+      b.classList.add('active');
+      run();
+    };
+    examplesDiv.appendChild(b);
+    buttons.push(b);
+    if (i === 5) editor.value = ex.src; /* factorial/recursion by default */
+  });
+  buttons[5].classList.add('active');
+
+  function run() {
+    var src = editor.value;
+    var t0 = performance.now();
+    try {
+      var r = CC0.run(src);
+      output.classList.remove('err');
+      output.textContent = r.output === '' ? '(no output)' : r.output;
+      var ms = (performance.now() - t0).toFixed(1);
+      status.innerHTML = 'Finished in ' + ms + ' ms · ' +
+        r.steps.toLocaleString() + ' steps · <b>exit code ' + r.exitCode + '</b>';
+      if (runAsm.checked) showAsm(src);
+    } catch (e) {
+      output.classList.add('err');
+      output.textContent = 'Error: ' + e.message;
+      status.innerHTML = '<b class="err">Failed</b> — fix the program and run again.';
+      asmPre.style.display = 'none';
+      asmHeading.style.display = 'none';
+    }
+  }
+
+  function showAsm(src) {
+    try {
+      asmPre.textContent = CC0.asmListing(src);
+      asmPre.style.display = 'block';
+      asmHeading.style.display = 'block';
+      document.getElementById('asmBtn').textContent = 'Hide assembly';
+    } catch (e) {
+      asmPre.textContent = 'Could not generate assembly: ' + e.message;
+      asmPre.style.display = 'block';
+      asmHeading.style.display = 'block';
+    }
+  }
+
+  document.getElementById('runBtn').onclick = run;
+  document.getElementById('asmBtn').onclick = function () {
+    if (asmPre.style.display === 'block') {
+      asmPre.style.display = 'none';
+      asmHeading.style.display = 'none';
+      this.textContent = 'Show assembly';
+    } else {
+      showAsm(editor.value);
+    }
+  };
+  document.getElementById('clearBtn').onclick = function () {
+    output.classList.remove('err');
+    output.textContent = '(nothing run yet)';
+    status.textContent = '';
+    asmPre.style.display = 'none';
+    asmHeading.style.display = 'none';
+  };
+  editor.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); }
+  });
+})();
+</script>
 
 <h2>How it works</h2>
 <pre>source .c  →  lexer  →  recursive-descent parser (AST)
@@ -156,9 +291,18 @@ int main() {
 ABI), each function gets its own stack frame, and the stack is kept
 16-byte aligned at every call — so recursion just works.</p>
 
+<h2>Examples 7–9</h2>
+<p>Examples 7 (for / break / continue / else-if), 8 (char, ++/--, bitwise,
+globals) and 9 (void functions, shared globals, fibonacci) are in the
+live playground at the top of this page — click their buttons to run them.
+Their sources are <code>tests/test7_for_break.c</code>,
+<code>tests/test8_char_ops.c</code> and
+<code>tests/test9_void_globals.c</code> in the repo.</p>
+
 <h2>How to run it</h2>
-<p>This page is only a demo — the compiler itself runs on Linux with
-<code>gcc</code> installed. No server, no account, no environment variables.</p>
+<p>The playground above is a JavaScript interpreter for the same language.
+The compiler itself runs on Linux with <code>gcc</code> installed.
+No server, no account, no environment variables.</p>
 <pre>git clone &lt;your-repo-url&gt;
 cd c-compiler-in-c      # this folder is a standalone repo (suggested name)
 make                    # builds ./cc0 from src/main.c
@@ -176,6 +320,10 @@ tested, the limitations, and the next steps.</p>
   <li>No preprocessor (<code>#include</code> / <code>#define</code>).</li>
   <li>Only 64-bit x86-64 Linux; division by zero crashes, as in C.</li>
   <li>Exit codes are 8-bit, so <code>return 300;</code> shows up as 44.</li>
+  <li>The in-browser interpreter adds <code>printf</code> with
+      <code>%d</code>/<code>%c</code>/<code>%s</code> and string literals,
+      which the real compiler does not support — and it reports division
+      by zero as an error instead of crashing.</li>
 </ul>
 
 </body>

@@ -541,6 +541,23 @@ needs a bigger redesign than a single update should carry:
    suggestions) and a test suite that also checks that invalid
    programs are rejected (the extra checks above are run by hand).
 
+## Live web version
+
+Try the compiler's language **in your browser — no install, no server**:
+**https://abhiyadavj2006-del.github.io/c-compiler-in-c/demo/**
+
+The demo page now has a live playground: a code editor, a Run button, and
+a program-output pane, powered by `demo/cc0.js` — a pure-JavaScript
+interpreter for the exact C subset cc0 supports (functions and recursion,
+`for`, `if`/`else if`/`else`, `break`/`continue`, globals, `char`,
+`void`, bitwise/shift operators, `print`), plus `printf` with
+`%d`/`%c`/`%s` as a web-only extra. All 9 test programs are one-click
+examples (factorial/recursion included), and it shows an assembly-style
+listing in the same stack-machine style cc0's real code generator emits.
+Infinite loops can't hang the page: every run is bounded by a 1,000,000
+step limit and a 3-second time limit. It is a single static page plus one
+small JS file — no build step, no CDN, works offline once loaded.
+
 ## Live / Deploy
 
 "Live" for a C compiler does not mean a hosted compiler service. The
@@ -552,9 +569,10 @@ HTML/CSS with no external dependencies.
 
 **Live:** the repo is already on GitHub as `c-compiler-in-c` under
 `abhiyadavj2006-del`, and GitHub Pages is live — the demo page is at
-`https://abhiyadavj2006-del.github.io/c-compiler-in-c/demo/`. This
-update (functions, `for`, globals, `char`, …) is **not pushed yet** —
-it lives only in this folder until someone runs the push below.
+`https://abhiyadavj2006-del.github.io/c-compiler-in-c/demo/`. The
+advanced update (functions, `for`, globals, `char`, …) and the live
+in-browser playground are pushed to `main`; GitHub Pages redeploys
+automatically from `main`, so the demo updates itself after a push.
 
 **To push this update (not done by the agent — no push was made):**
 
@@ -593,7 +611,10 @@ c-compiler-in-c/
 │   ├── test8_char_ops.c         # char, ++/--, +=, bitwise, globals
 │   └── test9_void_globals.c     # void functions, shared globals, fib
 └── demo/
-    └── index.html       # static demo page for GitHub Pages / any static host
+    ├── index.html       # static demo page for GitHub Pages / any static host
+    │                    # now with a live in-browser playground
+    └── cc0.js           # pure-JS interpreter + assembly listing for the page
+                         # (no backend, no CDN, no build step)
 ```
 
 ## License
